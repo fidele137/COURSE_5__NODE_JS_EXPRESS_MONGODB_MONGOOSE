@@ -10,5 +10,5 @@ WEEK 3:
 Basic authentifcation and token-based User authentication with the support of JSON web tokens (jwt) (passeport-local, passport-local-mongoose, OAuth2). Development of full-fledged REST API server with Express, Mongo and Mongoose.
 
 WEEK 4: 
-Mongoose population, a way of cross-referencing documents and populating the documents from other documents. Secure communication using HTTPS. Introduction to Backend as a Service (BaaS) (Loopback & IBM Bluemix).
+Mongoose population, a way of cross-referencing documents and populating the documents from other documents. Secure communication using HTTPS. Introduction to Backend as a Service (BaaS) (Loopback & IBM-Bluemix).
 

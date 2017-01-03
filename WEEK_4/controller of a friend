@@ -1,0 +1,276 @@
+var express = require('express');
+var bodyParser = require('body-parser');
+var mongoose = require('mongoose');
+var Verify = require('./verify');
+var Favorites = require('../models/favorites');
+
+var favoriteRouter = express.Router();
+favoriteRouter.use(bodyParser.json());
+
+favoriteRouter.route('/')
+  .all(Verify.verifyOrdinaryUser)
+  .get(Verify.verifyOrdinaryUser, function (req, res, next) {
+    Favorites.find({'postedBy': req.decoded._doc._id})
+      .populate('postedBy')
+      .populate('dishes')
+      .exec(function (err, favorites) {
+         if (err) return err;
+         res.json(favorites);
+    });
+})
+
+  .post(Verify.verifyOrdinaryUser, function (req, res, next) {
+    req.body.postedBy = req.decoded._doc._id;
+    req.body.dishes = req.body._id;
+    Favorites.find({'postedBy': req.body.postedBy})
+              .exec(function(err, favorites){
+                if (err) return err;
+                if (!favorites.length){ //No dishes found favorites for my user
+                  Favorites.create({'postedBy': req.body.postedBy,'dishes':req.body.dishes},function (err, favorites){
+                            if (err) throw err;
+                            console.log('Dish created!');
+                            res.json(favorites);
+                    });
+                }
+                else{      //If there are dishes on favorites, look for posted. If exist, display, if not, create
+                  var DishExist = false;
+                  if (favorites[0].dishes.length){
+                    for (var i=0;i<=(favorites[0].dishes.length)-1;i++){
+                      if (favorites[0].dishes[i] == req.body.dishes){ //If dish exists
+                        DishExist = true;
+                        break;
+                      }
+                    }
+                  }
+                  if (!DishExist){
+                    favorites[0].dishes.push(req.body.dishes);
+                    favorites[0].save(function (err, favorites){
+                      if (err) throw err;
+                      console.log('Dish added to favorites');
+                    });
+                  }
+                  else console.log('Dish Already in Favorites');
+                  res.json(favorites);
+                }
+            });
+          })
+
+  .delete(Verify.verifyOrdinaryUser, function (req, res, next){
+    Favorites.remove({'postedBy': req.decoded._doc._id}, function (err, favorites) {
+                if (err) throw err;
+                res.json(favorites);
+            })
+        });
+
+favoriteRouter.route('/:dishId')
+.delete(Verify.verifyOrdinaryUser, function (req, res, next){
+  req.body.postedBy = req.decoded._doc._id;
+  req.body.dishes = req.body._id;
+  Favorites.findOne({'postedBy': req.body.postedBy})
+                .exec(function(err,favorites){
+                if (err) throw err;
+                if (favorites){
+                  for (var i = (favorites.dishes.length - 1); i >= 0; i--) {
+                    if (favorites.dishes[i] == req.params.dishId){
+                      favorites.dishes.remove(req.params.dishId);
+                    }
+                  }
+                  favorites.save(function (err, result){
+                  res.writeHead(200, {'Content-Type': 'text/plain'});
+                  res.end('Dish deleted!');
+                });
+              }
+        });
+      })
+
+module.exports = favoriteRouter;
+
+
+
+
+
+
+
+
+
+
+
+// SECOND FRIEND
+
+
+var express = require('express');
+var bodyParser = require('body-parser');
+var mongoose = require('mongoose');
+var Favorites = require('../models/favorites');
+var Verify = require('./verify');
+
+var favoriteRouter = express.Router();
+
+favoriteRouter.use(bodyParser.json());
+
+favoriteRouter.route('/')
+.get(Verify.verifyOrdinaryUser, function (req, res, next) {
+        Favorites.find({"postedBy":req.decoded._doc._id})
+        .populate ('postedBy')
+        .populate('dishes')
+        .exec(function (err, favorite) {
+        if (err) next(err);
+        res.json(favorite);
+    });
+})
+
+.post(Verify.verifyOrdinaryUser, function (req, res, next) {
+    Favorites.findOne({"postedBy":req.decoded._doc._id}, function (err, favorite) {
+        if (err) next(err);
+
+        if (!favorite)
+            {
+            Favorites.create({"postedBy":req.decoded._doc._id}, function (err, favorite) {
+                if (err) next(err);
+                    favorite.dishes.push(req.body);
+                    favorite.save(function (err, favorite) {
+                        if (err) next(err);
+                        console.log('Creatd Favorites and saved the dish!');
+                        res.json(favorite);
+                    });
+            });
+            }
+        else
+        {
+            if (favorite.dishes.indexOf(req.body._id) == -1) 
+            {
+                favorite.dishes.push(req.body);
+                favorite.save(function (err, favorite) {
+                if (err) next(err);
+                console.log('Added dish to Favorites!');
+                res.json(favorite);
+            });
+            }
+            else 
+                {
+                    console.log('Already in Favorites');
+                    res.json(favorite);
+                }
+        }
+    });
+})
+
+.delete(Verify.verifyOrdinaryUser, function (req, res, next) {
+        Favorites.find({"postedBy":req.decoded._doc._id}).remove().exec(function (err, resp) {        
+          if (err) next(err);
+          res.json(resp);
+    });
+});
+
+favoriteRouter.route('/:dishObjectId')
+.delete(Verify.verifyOrdinaryUser, function (req, res, next){
+        Favorites.findOne({"postedBy":req.decoded._doc._id}, function (err, favorite) {        
+          if (err) next(err);
+          
+          if (favorite)
+          {
+              if(favorite.dishes)
+                {
+                var i = favorite.dishes.indexOf(req.params.dishObjectId);
+                    if (i == -1) 
+                        {
+                        console.log('Not in Favorites');
+                        res.json(favorite);
+                        }
+                        else 
+                            {
+                            favorite.dishes.splice(i, 1);
+                            favorite.save(function (err, favorite) {
+                            if (err) next(err);
+                            console.log('Removed dish from Favorites!');
+                            res.json(favorite);
+                                });
+                            }
+                }
+                else
+                {
+                console.log('Dish not in Favorites!');
+                res.json(favorite);
+                }
+            }
+            else
+            {
+            console.log('Favorites are empty');
+            res.json(favorite);
+            }
+    });
+});
+
+module.exports = favoriteRouter;
+
+
+
+// THIRD FRIEND
+
+"use strict";
+var Favorites = require('../models/favorites');
+var bodyParser = require('body-parser');
+var express = require('express');
+var router = express.Router();
+var verify = require('./verify');
+
+router.use(bodyParser.json());
+
+router.route('/')
+    .all(verify.verifyOrdinaryUser)
+    .get(function (req, res, next) {
+        Favorites.find({})
+            .populate('postedBy dishes')
+            .exec(function (err, favorites) {
+                if (err) {
+                    return next(err);
+                }
+                res.json(favorites);
+            });
+    })
+    .post(function (req, res, next) {
+        Favorites.findOneAndUpdate({
+            postedBy: req.decoded._doc._id
+        }, {
+            $addToSet: {
+                dishes: req.body._id
+            }
+        }, {
+            upsert: true,
+            new: true
+        }, function (err, favorite) {
+            if (err) {
+                return next(err);
+            }
+            res.json(favorite);
+        });
+    })
+    .delete(function (req, res, next) {
+        Favorites.findOneAndRemove({
+            postedBy: req.decoded._doc._id
+        }, null, function (err, response) {
+            if (err) {
+                return next(err);
+            }
+            res.json(response);
+        });
+    });
+
+router.delete('/:dishObjectId', verify.verifyOrdinaryUser, function (req, res, next) {
+    Favorites.findOneAndUpdate({
+        postedBy: req.decoded._doc._id
+    }, {
+        $pull: {
+            dishes: req.params.dishObjectId
+        }
+    }, {
+        new: true
+    }, function (err, response) {
+        if (err) {
+            return next(err);
+        }
+        res.json(response);
+    })
+});
+
+module.exports = router;
